@@ -1,3 +1,9 @@
+/*
+
+This is a very simple SQL Compiler and can also double as a command center.
+
+*/
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -147,6 +153,7 @@ int main(int argc, char *argv[])
         print_prompt();
         read_input(input_buffer);
 
+        /* Check whether its a keyword */
         if (input_buffer->buffer[0] == '.')
         {
             switch (do_meta_command(input_buffer))
@@ -161,6 +168,7 @@ int main(int argc, char *argv[])
         }
 
         Statement statement;
+        /* Check Whether it's a valid statement */
         switch (prepare_statement(input_buffer, &statement))
         {
         case (PREPARE_SUCCESS):
