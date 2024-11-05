@@ -6,7 +6,7 @@
 
 ## Introduction 
 
-I'm bored.
+I'm bored and I'd love to work.
 A Database Management System (DBMS) is software that enables users and applications to store, retrieve, and manipulate data efficiently. 
 It serves as an interface between end-users or applications and the database itself, managing how data is structured, stored, and accessed.
 
