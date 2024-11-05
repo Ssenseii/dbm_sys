@@ -11,24 +11,6 @@
 #define COLUMN_EMAIL_SIZE 255
 #define TABLE_MAX_PAGES 100
 
-#define size_of_attribute(Struct, Attribute) sizeof(((Struct *)0)->Attribute)
-
-/* Constants */
-const uint32_t ID_SIZE = sizeof(((Row *)0)->id);             //  sizeof(uint32_t)
-const uint32_t USERNAME_SIZE = sizeof(((Row *)0)->username); //  sizeof(char[32])
-const uint32_t EMAIL_SIZE = sizeof(((Row *)0)->email);       //  sizeof(char[255])
-
-const uint32_t ID_OFFSET = 0;
-const uint32_t USERNAME_OFFSET = ID_OFFSET + ID_SIZE;
-const uint32_t EMAIL_OFFSET = USERNAME_OFFSET + USERNAME_SIZE;
-const uint32_t ROW_SIZE = ID_SIZE + USERNAME_SIZE + EMAIL_SIZE;
-
-const uint32_t PAGE_SIZE = 4096;
-const uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
-
-/* Assuming TABLE_MAX_PAGES is defined somewhere as a constant */
-const uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
-
 /* Enums */
 
 typedef enum
@@ -81,8 +63,26 @@ typedef struct
 typedef struct
 {
     uint32_t num_rows;
-    void *pages[TABLE_MAX_PAGES]
+    void *pages[TABLE_MAX_PAGES];
 } Table;
+
+#define size_of_attribute(Struct, Attribute) sizeof(((Struct *)0)->Attribute)
+
+/* Constants */
+#define ID_SIZE sizeof(((Row *)0)->id)             // sizeof(uint32_t)
+#define USERNAME_SIZE sizeof(((Row *)0)->username) // sizeof(char[32])
+#define EMAIL_SIZE sizeof(((Row *)0)->email)       // sizeof(char[255])
+
+#define ID_OFFSET 0
+#define USERNAME_OFFSET (ID_OFFSET + ID_SIZE)
+#define EMAIL_OFFSET (USERNAME_OFFSET + USERNAME_SIZE)
+#define ROW_SIZE (ID_SIZE + USERNAME_SIZE + EMAIL_SIZE)
+
+#define PAGE_SIZE 4096
+#define ROWS_PER_PAGE (PAGE_SIZE / ROW_SIZE)
+
+/* Assuming TABLE_MAX_PAGES is defined somewhere as a constant */
+#define TABLE_MAX_ROWS (ROWS_PER_PAGE * TABLE_MAX_PAGES)
 
 /* Instantiates*/
 
@@ -193,6 +193,45 @@ PrepareResult prepare_statement(InputBuffer *input_buffer, Statement *statement)
     return PREPARE_UNRECOGNIZED_STATEMENT;
 }
 
+/* Convert To and From the compact representation */
+
+void serialize_row(Row *source, void *destination)
+{
+    memcpy(destination + ID_OFFSET, &(source->id), ID_SIZE);
+    memcpy(destination + USERNAME_OFFSET, &(source->username), USERNAME_SIZE);
+    memcpy(destination + EMAIL_OFFSET, &(source->email), EMAIL_SIZE);
+}
+
+void deserialize_row(void *source, Row *destination)
+{
+    memcpy(&(destination->id), source + ID_OFFSET, ID_SIZE);
+    memcpy(&(destination->username), source + USERNAME_OFFSET, USERNAME_SIZE);
+    memcpy(&(destination->email), source + EMAIL_OFFSET, EMAIL_SIZE);
+}
+
+/* How we figure out where and how to read in memory */
+
+void *row_slot(Table *table, uint32_t row_num)
+{
+    uint32_t page_num = row_num / ROWS_PER_PAGE;
+    void *page = table->pages[page_num];
+    if (page == NULL)
+    {
+        // Allocate memory only when we try to access page
+        page = table->pages[page_num] = malloc(PAGE_SIZE);
+    }
+    uint32_t row_offset = row_num % ROWS_PER_PAGE;
+    uint32_t byte_offset = row_offset * ROW_SIZE;
+    return page + byte_offset;
+}
+
+/* Printing a Row */
+
+void print_row(Row *row)
+{
+    printf("(%d, %s, %s)\n", row->id, row->username, row->email);
+}
+
 /* Execute the statement*/
 /*
 depending on the statement: it'll execute a certain function.
@@ -231,38 +270,6 @@ ExecuteResult execute_statement(Statement *statement, Table *table)
 
         return execute_select(statement, table);
     }
-}
-
-/* Convert To and From the compact representation */
-
-void serialize_row(Row *source, void *destination)
-{
-    memcpy(destination + ID_OFFSET, &(source->id), ID_SIZE);
-    memcpy(destination + USERNAME_OFFSET, &(source->username), USERNAME_SIZE);
-    memcpy(destination + EMAIL_OFFSET, &(source->email), EMAIL_SIZE);
-}
-
-void deserialize_row(void *source, Row *destination)
-{
-    memcpy(&(destination->id), source + ID_OFFSET, ID_SIZE);
-    memcpy(&(destination->username), source + USERNAME_OFFSET, USERNAME_SIZE);
-    memcpy(&(destination->email), source + EMAIL_OFFSET, EMAIL_SIZE);
-}
-
-/* How we figure out where and how to read in memory */
-
-void *row_slot(Table *table, uint32_t row_num)
-{
-    uint32_t page_num = row_num / ROWS_PER_PAGE;
-    void *page = table->pages[page_num];
-    if (page == NULL)
-    {
-        // Allocate memory only when we try to access page
-        page = table->pages[page_num] = malloc(PAGE_SIZE);
-    }
-    uint32_t row_offset = row_num % ROWS_PER_PAGE;
-    uint32_t byte_offset = row_offset * ROW_SIZE;
-    return page + byte_offset;
 }
 
 /* Main Function */
@@ -316,6 +323,5 @@ int main(int argc, char *argv[])
             printf("Error: Table full.\n");
             break;
         }
-        printf("Executed.\n");
     }
 }
